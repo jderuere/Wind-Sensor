@@ -119,7 +119,7 @@ void loop() {
 
   JsonObject& root = jsonBuffer.createObject();
   root["sensor"] = "wind";
-  root["tmp_volts"] = TMP_Therm_ADunits * 0.0048828125;
+//  root["tmp_volts"] = TMP_Therm_ADunits * 0.0048828125;
   //  root["rv_volts"] = RV_Wind_Volts;
   //  root["tempc_100"] = TempCtimes100;
   //  root["zerowind_volts"] = zeroWind_volts;
