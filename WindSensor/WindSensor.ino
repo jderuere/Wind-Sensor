@@ -28,7 +28,7 @@
 
   Hardware setup:
   Wind Sensor is powered from a regulated five volt source.
-  RV pin and TMP pin are connected to analog innputs.
+  RV pin and TMP pin are connected to analog inputs.
 
 */
 
