@@ -106,6 +106,8 @@ void loop() {
 
   zeroWind_volts = (zeroWind_ADunits * 0.0048828125) - zeroWindAdjustment;
 
+//  Serial.println(zeroWind_volts);
+
   // This from a regression from data in the form of
   // Vraw = V0 + b * WindSpeed ^ c
   // V0 is zero wind at a particular temperature
@@ -118,23 +120,23 @@ void loop() {
   JsonObject& root = jsonBuffer.createObject();
   root["sensor"] = "wind";
   root["tmp_volts"] = TMP_Therm_ADunits * 0.0048828125;
-//  root["rv_volts"] = RV_Wind_Volts;
-//  root["tempc_100"] = TempCtimes100;
-//  root["zerowind_volts"] = zeroWind_volts;
+  //  root["rv_volts"] = RV_Wind_Volts;
+  //  root["tempc_100"] = TempCtimes100;
+  //  root["zerowind_volts"] = zeroWind_volts;
   root["windspeed_mph"] = WindSpeed_MPH;
 
   String message;
   root.printTo(message);
 
   char messageBuffer[message.length() + 1];
-  message.toCharArray(messageBuffer, message.length() +1);
+  message.toCharArray(messageBuffer, message.length() + 1);
 
-  Serial.println(messageBuffer);
+  //  Serial.println(messageBuffer);
 
   String message2 = URLEncode(messageBuffer);
-  
-//  Serial.println("Message: " + message);
-  
+
+  // Serial.println("Message: " + message);
+
   Serial.println("Publishing message:");
   String url = "http://pubsub.pubnub.com/publish/" + pubkey + "/" + subkey + "/0/" + channel + "/0/" + message2;
   Serial.println(url);
@@ -148,7 +150,7 @@ void loop() {
   }
   SerialUSB.flush();
 
-  delay(100);
+  delay(1000);
 }
 
 String URLEncode(const char* msg)
@@ -162,7 +164,7 @@ String URLEncode(const char* msg)
       encodedMsg += hex[*msg >> 4];
       encodedMsg += hex[*msg & 15];
     } else {
-       encodedMsg += *msg;  
+      encodedMsg += *msg;
     }
     msg++;
   }
