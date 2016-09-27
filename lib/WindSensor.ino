@@ -32,17 +32,7 @@
 
 */
 
-#include <YunClient.h>
-#include <Mailbox.h>
-#include <Console.h>
-#include <YunServer.h>
-#include <Process.h>
-#include <BridgeSSLClient.h>
-#include <BridgeUdp.h>
 #include <Bridge.h>
-#include <BridgeServer.h>
-#include <FileIO.h>
-#include <BridgeClient.h>
 #include <HttpClient.h>
 #include <ArduinoJson.h>
 
@@ -73,7 +63,11 @@ float zeroWind_ADunits;
 float zeroWind_volts;
 float WindSpeed_MPH;
 
+int i = 0;
+
 HttpClient client;
+
+StaticJsonBuffer<200> jsonBuffer;
 
 void setup() {
   Bridge.begin();
@@ -115,9 +109,9 @@ void loop() {
 
   WindSpeed_MPH = pow(((RV_Wind_Volts - zeroWind_volts) / .2300) , 2.7265);
 
-  StaticJsonBuffer<200> jsonBuffer;
-
-  JsonObject& root = jsonBuffer.createObject();
+  
+  if (i == 100) {
+      JsonObject& root = jsonBuffer.createObject();
   root["sensor"] = "wind";
 //  root["tmp_volts"] = TMP_Therm_ADunits * 0.0048828125;
   //  root["rv_volts"] = RV_Wind_Volts;
@@ -150,7 +144,11 @@ void loop() {
   }
   SerialUSB.flush();
 
-  delay(1000);
+    i = 0;
+  }
+
+  i++;
+  delay(1);
 }
 
 String URLEncode(const char* msg)
@@ -170,4 +168,3 @@ String URLEncode(const char* msg)
   }
   return encodedMsg;
 }
-
