@@ -32,21 +32,18 @@
 
 */
 
-#include <Bridge.h>
-#include <HttpClient.h>
-#include <ArduinoJson.h>
+#include <aws_iot_mqtt.h>
+#include <aws_iot_version.h>
+#include "aws_iot_config.h"
 
 #define analogPinForRV    1   // change to pins you the analog pins are using
 #define analogPinForTMP   0
 
-#define PN_SERVER       "http://pubsub.pubnub.com"
-#define WEBPAGE  "/publish/"
+aws_iot_mqtt_client myClient;
 
-String pubkey =  "pub-c-1c1a123a-7113-4ecf-89e3-146b9d42a3ac";
-String subkey = "sub-c-35c09676-2680-11e6-9f24-02ee2ddab7fe";
-String channel = "%2Fusers%2Fjderuere%2Fconcordia-tml";
-
-/****************************** Channel ***************************************/
+char msg[32]; // read-write buffer
+int rc = -100; // return value placeholder
+bool success_connect = false; // whether it is connected
 
 // to calibrate your sensor, put a glass over it, but the sensor should not be
 // touching the desktop surface however.
@@ -63,28 +60,40 @@ float zeroWind_ADunits;
 float zeroWind_volts;
 float WindSpeed_MPH;
 
-int i = 0;
-
-HttpClient client;
-
-StaticJsonBuffer<200> jsonBuffer;
-
 void setup() {
-  Bridge.begin();
+  Serial.begin(115200);
 
-  Serial.println(F("Internet done!"));
-  Serial.println(F("Resolving PubNub..."));
+  while (!Serial); // wait for a serial connection
 
-  SerialUSB.begin(9600);
+  char curr_version[80];
+  snprintf_P(curr_version, 80, PSTR("AWS IoT SDK Version(dev) %d.%d.%d-%s\n"), VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, VERSION_TAG);
+  Serial.println(curr_version);
 
-  while (!SerialUSB); // wait for a serial connection
-  Serial.println(F("Resolved!"));
+  // Set up the client
+  if((rc = myClient.setup(AWS_IOT_CLIENT_ID)) == 0) {
+    // Load user configuration
+    if((rc = myClient.config(AWS_IOT_MQTT_HOST, AWS_IOT_MQTT_PORT, AWS_IOT_ROOT_CA_PATH, AWS_IOT_PRIVATE_KEY_PATH, AWS_IOT_CERTIFICATE_PATH)) == 0) {
+      // Use default connect: 60 sec for keepalive
+      if((rc = myClient.connect()) == 0) {
+        success_connect = true;
+      } else {
+        Serial.println(F("Config failed!"));
+        Serial.println(rc);
+      }
+    } else {
+      Serial.println(F("Setup failed!"));
+      Serial.println(rc);
+    }
+  }
 
   //   Uncomment the three lines below to reset the analog pins A2 & A3
   //   This is code from the Modern Device temp sensor (not required)
   pinMode(A2, INPUT);        // GND pin
   pinMode(A3, INPUT);        // VCC pin
   digitalWrite(A3, LOW);     // turn off pullups
+
+  // Delay to make sure SUBACK is received, delay time could vary according to the server
+  delay(1000);
 }
 
 void loop() {
@@ -100,71 +109,32 @@ void loop() {
 
   zeroWind_volts = (zeroWind_ADunits * 0.0048828125) - zeroWindAdjustment;
 
-//  Serial.println(zeroWind_volts);
-
   // This from a regression from data in the form of
   // Vraw = V0 + b * WindSpeed ^ c
   // V0 is zero wind at a particular temperature
   // The constants b and c were determined by some Excel wrangling with the solver.
 
   WindSpeed_MPH = pow(((RV_Wind_Volts - zeroWind_volts) / .2300) , 2.7265);
-
+  if(!isnan(WindSpeed_MPH)) {
+    Serial.println(WindSpeed_MPH);
+      
+   if (success_connect) {
+      char buffer[10];
+      dtostrf(WindSpeed_MPH, 2, 2, buffer);
   
-  if (i == 100) {
-      JsonObject& root = jsonBuffer.createObject();
-  root["sensor"] = "wind";
-//  root["tmp_volts"] = TMP_Therm_ADunits * 0.0048828125;
-  //  root["rv_volts"] = RV_Wind_Volts;
-  //  root["tempc_100"] = TempCtimes100;
-  //  root["zerowind_volts"] = zeroWind_volts;
-  root["windspeed_mph"] = WindSpeed_MPH;
-
-  String message;
-  root.printTo(message);
-
-  char messageBuffer[message.length() + 1];
-  message.toCharArray(messageBuffer, message.length() + 1);
-
-  //  Serial.println(messageBuffer);
-
-  String message2 = URLEncode(messageBuffer);
-
-  // Serial.println("Message: " + message);
-
-  Serial.println("Publishing message:");
-  String url = "http://pubsub.pubnub.com/publish/" + pubkey + "/" + subkey + "/0/" + channel + "/0/" + message2;
-  Serial.println(url);
-  client.get(url);
-
-  // if there are incoming bytes available
-  // from the server, read them and print them:
-  while (client.available()) {
-    char c = client.read();
-    SerialUSB.print(c);
-  }
-  SerialUSB.flush();
-
-    i = 0;
-  }
-
-  i++;
-  delay(1);
-}
-
-String URLEncode(const char* msg)
-{
-  const char *hex = "0123456789abcdef";
-  String encodedMsg = "";
-
-  while (*msg != '\0') {
-    if ('{' == *msg || '}' == *msg || ':' == *msg || ',' == *msg || '"' == *msg) {
-      encodedMsg += '%';
-      encodedMsg += hex[*msg >> 4];
-      encodedMsg += hex[*msg & 15];
-    } else {
-      encodedMsg += *msg;
-    }
-    msg++;
-  }
-  return encodedMsg;
+      // Generate a new message in each loop and publish to a topic
+      if((rc = myClient.publish("windspeed_mph", buffer, 4, 1, false)) != 0) {
+        Serial.println(F("Publish failed!"));
+        Serial.println(rc);
+      }
+    
+      // Get a chance to run a callback
+      if((rc = myClient.yield()) != 0) {
+        Serial.println("Yield failed!");
+        Serial.println(rc);
+      }
+   }
+ }
+ 
+ delay(10); 
 }
